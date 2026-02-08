@@ -14,9 +14,15 @@ const { generateOTP, sendOTPEmail, sendWelcomeEmail, sendDonorThankYouEmail } = 
 
 const app = express();
 const server = http.createServer(app);
+
+// CORS Configuration - Read allowed origins from environment variable
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+  : ["http://localhost:5173", "http://localhost:5174", "http://localhost:8080", "http://localhost:8081"];
+
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:8080", "http://localhost:8081"],
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
   }
@@ -24,6 +30,14 @@ const io = new Server(server, {
 
 // Make io accessible to routes
 app.set('io', io);
+
+// Enable CORS for Express app
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 
 app.use(express.json());
 
@@ -1198,7 +1212,7 @@ app.get("/api/health", async (req, res) => {
   }
 
   // Check Firebase (simple check - if config exists)
-  if (process.env.FIREBASE_PROJECT_ID) {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     health.services.firebase = true;
   }
 
