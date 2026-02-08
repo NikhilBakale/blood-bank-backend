@@ -1193,7 +1193,7 @@ app.get("/api/health", async (req, res) => {
   }
 
   // Check Cosmos (if initialized)
-  if (hospitalContainer && donorContainer) {
+  if (container && database) {
     health.services.cosmos = true;
   }
 
