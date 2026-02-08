@@ -1295,9 +1295,6 @@ app.get("/api/debug/all-hospitals", async (req, res) => {
   }
 });
 
-// Start Server
-const PORT = process.env.PORT || 5000;
-
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('🔌 Client connected:', socket.id);
