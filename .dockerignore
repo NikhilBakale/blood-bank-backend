@@ -1,0 +1,11 @@
+.git
+.github
+node_modules
+logs
+*.log
+.env
+.env.local
+.env.example
+*.md
+test-*.js
+verify-*.js

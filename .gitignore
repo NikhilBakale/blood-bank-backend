@@ -1,0 +1,13 @@
+﻿node_modules/
+.env
+.env.*
+*.log
+server.log
+.DS_Store
+build/
+dist/
+deploy-*.zip
+coverage/
+.vscode/
+npm-debug.log
+yarn-error.log
