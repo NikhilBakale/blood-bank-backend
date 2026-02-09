@@ -277,53 +277,78 @@ router.post("/donations", async (req, res) => {
     }
 
     const connection = await getConnection();
-    const request = connection.request();
+    
+    // 🩸 FEATURE: Auto-split donations based on standard 450ml unit size
+    const STANDARD_UNIT_ML = 450;
+    const unitsToCreate = Math.max(1, Math.floor(volume_ml / STANDARD_UNIT_ML));
+    const volumePerUnit = Math.floor(volume_ml / unitsToCreate);
+    
+    console.log(`🩸 Volume: ${volume_ml}ml → Creating ${unitsToCreate} unit(s) of ${volumePerUnit}ml each (Standard unit: ${STANDARD_UNIT_ML}ml)`);
 
-    const blood_id = generateBloodId();
+    const createdDonations = [];
 
-    request.input("blood_id", sql.NVarChar(50), blood_id);
-    request.input("donor_id", sql.Int, donor_id);
-    request.input("hospital_id", sql.VarChar(10), hospital_id);
-    request.input("blood_type", sql.VarChar(5), blood_type);
-    request.input("rh_factor", sql.VarChar(1), rh_factor);
-    request.input("component_type", sql.NVarChar(50), component_type);
-    request.input("volume_ml", sql.Int, volume_ml);
-    request.input("collection_date", sql.DateTime, new Date(collection_date));
-    request.input("expiry_date", sql.DateTime, new Date(expiry_date));
-    request.input("storage_location", sql.NVarChar(100), storage_location || null);
-    request.input("test_result_hiv", sql.VarChar(20), test_result_hiv || null);
-    request.input("test_result_hbsag", sql.VarChar(20), test_result_hbsag || null);
-    request.input("test_result_hcv", sql.VarChar(20), test_result_hcv || null);
-    request.input("test_result_syphilis", sql.VarChar(20), test_result_syphilis || null);
+    // Create donations (1 or 2 units based on volume)
+    for (let i = 0; i < unitsToCreate; i++) {
+      const blood_id = generateBloodId();
+      const request = connection.request();
 
-    await request.query(`
-      INSERT INTO donations (
-        blood_id, donor_id, hospital_id, blood_type, rh_factor, component_type,
-        volume_ml, collection_date, expiry_date, storage_location,
-        test_result_hiv, test_result_hbsag, test_result_hcv, test_result_syphilis, status
-      )
-      VALUES (
-        @blood_id, @donor_id, @hospital_id, @blood_type, @rh_factor, @component_type,
-        @volume_ml, @collection_date, @expiry_date, @storage_location,
-        @test_result_hiv, @test_result_hbsag, @test_result_hcv, @test_result_syphilis, 'available'
-      );
-    `);
+      request.input("blood_id", sql.NVarChar(50), blood_id);
+      request.input("donor_id", sql.Int, donor_id);
+      request.input("hospital_id", sql.VarChar(10), hospital_id);
+      request.input("blood_type", sql.VarChar(5), blood_type);
+      request.input("rh_factor", sql.VarChar(1), rh_factor);
+      request.input("component_type", sql.NVarChar(50), component_type);
+      request.input("volume_ml", sql.Int, volumePerUnit);
+      request.input("collection_date", sql.DateTime, new Date(collection_date));
+      request.input("expiry_date", sql.DateTime, new Date(expiry_date));
+      request.input("storage_location", sql.NVarChar(100), storage_location || null);
+      request.input("test_result_hiv", sql.VarChar(20), test_result_hiv || null);
+      request.input("test_result_hbsag", sql.VarChar(20), test_result_hbsag || null);
+      request.input("test_result_hcv", sql.VarChar(20), test_result_hcv || null);
+      request.input("test_result_syphilis", sql.VarChar(20), test_result_syphilis || null);
 
-    // Update Firebase cache: increment total units and update blood inventory
-    await incrementCounter(hospital_id, 'totalBloodUnits', 1);
+      await request.query(`
+        INSERT INTO donations (
+          blood_id, donor_id, hospital_id, blood_type, rh_factor, component_type,
+          volume_ml, collection_date, expiry_date, storage_location,
+          test_result_hiv, test_result_hbsag, test_result_hcv, test_result_syphilis, status
+        )
+        VALUES (
+          @blood_id, @donor_id, @hospital_id, @blood_type, @rh_factor, @component_type,
+          @volume_ml, @collection_date, @expiry_date, @storage_location,
+          @test_result_hiv, @test_result_hbsag, @test_result_hcv, @test_result_syphilis, 'available'
+        );
+      `);
+
+      createdDonations.push({
+        blood_id,
+        volume_ml: volumePerUnit,
+        unit_number: i + 1,
+      });
+
+      console.log(`✅ Created donation unit ${i + 1}/${unitsToCreate}: ${blood_id} (${volumePerUnit}ml)`);
+    }
+
+    // Update Firebase cache: increment by number of units created
+    await incrementCounter(hospital_id, 'totalBloodUnits', unitsToCreate);
     await updateBloodInventory(hospital_id, `${blood_type}${rh_factor}`, volume_ml);
 
     res.status(201).json({
       success: true,
-      message: "Donation recorded successfully",
+      message: unitsToCreate > 1
+        ? `Donation of ${volume_ml}ml split into ${unitsToCreate} units of ${volumePerUnit}ml each (based on 450ml standard unit)`
+        : "Donation recorded successfully",
       data: {
-        blood_id,
         donor_id,
         blood_type: `${blood_type}${rh_factor}`,
         component_type,
-        volume_ml,
+        total_volume_ml: volume_ml,
+        units_created: unitsToCreate,
+        volume_per_unit: volumePerUnit,
+        standard_unit_size: 450,
         collection_date,
         expiry_date,
+        donations: createdDonations,
       },
     });
   } catch (error) {
