@@ -14,15 +14,9 @@ const { generateOTP, sendOTPEmail, sendWelcomeEmail, sendDonorThankYouEmail } = 
 
 const app = express();
 const server = http.createServer(app);
-
-// CORS Configuration - Read allowed origins from environment variable
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
-  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-  : ["http://localhost:5173", "http://localhost:5174", "http://localhost:8080", "http://localhost:8081"];
-
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:8080", "http://localhost:8081"],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
   }
@@ -31,14 +25,15 @@ const io = new Server(server, {
 // Make io accessible to routes
 app.set('io', io);
 
-// Enable CORS for Express app
-app.use(cors({
-  origin: allowedOrigins,
-  methods: ["GET", "POST", "PUT", "DELETE"],
+// CORS Configuration for Express
+const corsOptions = {
+  origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:8080", "http://localhost:8081", "https://bloodbackend-hscdfjh2bsbsfkb0.eastasia-01.azurewebsites.net"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+  optionsSuccessStatus: 200
+};
 
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const PORT = process.env.PORT || 5000;
@@ -138,6 +133,22 @@ function generateToken(hospitalId) {
 }
 
 // ============ API ENDPOINTS ============
+
+// Root endpoint
+app.get("/", (req, res) => {
+  res.json({ 
+    message: "Blood Bank Buddy API", 
+    version: "1.0.0",
+    status: "running",
+    endpoints: {
+      auth: "/api/auth/*",
+      hospitals: "/api/hospitals/*",
+      blood: "/api/hospital/*",
+      dashboard: "/api/dashboard/*",
+      health: "/api/health"
+    }
+  });
+});
 
 // Register Hospital
 app.post("/api/auth/register", async (req, res) => {
