@@ -871,6 +871,8 @@ app.get("/api/hospital/donations/available", async (req, res) => {
   try {
     const { hospital_id, blood_type, blood_types } = req.query;
 
+    console.log("🔍 Fetching available donations:", { hospital_id, blood_type, blood_types });
+
     if (!hospital_id) {
       return res.status(400).json({ error: "hospital_id is required" });
     }
@@ -901,10 +903,16 @@ app.get("/api/hospital/donations/available", async (req, res) => {
     // Handle multiple blood types (comma-separated) or single blood type
     if (blood_types) {
       const typesArray = blood_types.split(",").map(t => t.trim());
+      console.log("📋 Parsed blood types array:", typesArray);
+      
       // Build conditions to match (blood_type AND rh_factor) for each compatible type
       const conditions = typesArray.map((t, index) => {
-        const typePart = t.replace(/[+-]/g, '');
-        const rhPart = t.includes('+') ? '+' : '-';
+        // Remove any spaces and extract blood type and Rh factor
+        const cleanType = t.trim();
+        const typePart = cleanType.replace(/[+-]/g, '').trim();
+        const rhPart = cleanType.includes('+') ? '+' : '-';
+        
+        console.log(`  Type ${index}: "${cleanType}" → blood_type="${typePart}", rh_factor="${rhPart}"`);
         
         request.input(`bt_${index}`, sql.VarChar(5), typePart);
         request.input(`rf_${index}`, sql.VarChar(1), rhPart);
@@ -913,8 +921,11 @@ app.get("/api/hospital/donations/available", async (req, res) => {
       });
       query += ` AND (${conditions.join(" OR ")})`;
     } else if (blood_type) {
-      const typePart = blood_type.replace(/[+-]/g, '');
-      const rhPart = blood_type.includes('+') ? '+' : '-';
+      const cleanType = blood_type.trim();
+      const typePart = cleanType.replace(/[+-]/g, '').trim();
+      const rhPart = cleanType.includes('+') ? '+' : '-';
+      
+      console.log(`📋 Single blood type: "${cleanType}" → blood_type="${typePart}", rh_factor="${rhPart}"`);
       
       request.input("bt_single", sql.VarChar(5), typePart);
       request.input("rf_single", sql.VarChar(1), rhPart);
@@ -924,6 +935,8 @@ app.get("/api/hospital/donations/available", async (req, res) => {
     query += ` ORDER BY d.expiry_date ASC`;
 
     const result = await request.query(query);
+    
+    console.log(`✅ Found ${result.recordset.length} available blood units`);
 
     res.status(200).json({
       success: true,
